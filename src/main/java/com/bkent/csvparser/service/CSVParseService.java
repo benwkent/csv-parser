@@ -28,7 +28,7 @@ public class CSVParseService {
         csvData = handleEscapedQuotations(csvData, transactionId);
         StringBuilder finalString = new StringBuilder();
         try {
-            csvData.lines().forEach(line -> finalString.append(handleIndividualLine(line)).append("\n"));
+            csvData.lines().forEach(line -> finalString.append(handleIndividualLine(line, transactionId)).append("\n"));
         } catch (IllegalStateException e) {
             return new ResponseWrapper(new MetaData(transactionId),
                     null,
@@ -51,12 +51,11 @@ public class CSVParseService {
         String[] finalChars = {""};
         originalString.chars().mapToObj(character -> (char) character).forEach(character -> {
             counter.getAndIncrement();
-            if (character.equals('"') && originalString.startsWith("\"", counter.get())) {
+            if (character.equals('"') && nextCharIsQuote(originalString, counter.get())) {
                 finalChars[0] += applicationProperties.getQuotationPlaceholder();
-            } else if (character.equals('"') && counter.get() > 1 && originalString.substring(counter.get() -2, counter.get() -1).equals("\"")) {
+            } else if (character.equals('"') && previousCharIsQuote(originalString, counter.get())) {
                 finalChars[0] += "";
-            }
-            else {
+            } else {
                 finalChars[0] += character;
             }
         });
@@ -64,47 +63,61 @@ public class CSVParseService {
         return finalChars[0];
     }
 
-    private String handleIndividualLine(String line) {
-        long countQuotes = line.chars().filter(ch -> ch == '"').count();
+    private boolean nextCharIsQuote(String originalString, int counter) {
+        return originalString.startsWith("\"", counter);
+    }
+
+    private boolean previousCharIsQuote(String originalString, int counter) {
+        return counter > 1 && originalString.substring(counter - 2, counter - 1).equals("\"");
+    }
+
+    private String handleIndividualLine(String line, String transactionId) {
+        log.info("Beginning individual line processing for line " + line + " for transactionId: " + transactionId);
+        long countQuotes = line.chars().filter(character -> character == '"').count();
         if (countQuotes % 2 != 0) {
+            log.error("An odd number of quotations was present in the line " + line + " for transactionId: " + transactionId);
             throw new IllegalStateException(line);
         }
         StringBuilder finishedLine = new StringBuilder();
-        String quotesReplaced = removeQuotations(line);
+        String quotesReplaced = removeQuotations(line, transactionId);
         finishedLine.append(breakOnCommas(quotesReplaced));
+        log.info("Finished individual line processing for line " + line + " for transactionId: " + transactionId);
         return finishedLine.toString();
     }
 
-    private String removeQuotations(String string) {
+    private String removeQuotations(String line, String transactionId) {
+        log.info("Beginning adding quotation placeholders for for line " + line + " for transactionId: " + transactionId);
         List<String> stringsWithoutQuotes = new ArrayList<>();
         AtomicInteger quoteCounter = new AtomicInteger(0);
         AtomicBoolean isOpeningQuote = new AtomicBoolean(false);
-        String[] groupedChars = {""};
-        string.chars().mapToObj(character -> (char) character).forEach(character -> {
+        String[] csvItemBuilder = {""};
+        line.chars().mapToObj(character -> (char) character).forEach(character -> {
             if (character.equals('"')) {
                 quoteCounter.getAndIncrement();
                 isOpeningQuote.set(quoteCounter.get() % 2 != 0);
                 if (!isOpeningQuote.get()) {
-                    stringsWithoutQuotes.add(groupedChars[0]
+                    stringsWithoutQuotes.add(csvItemBuilder[0]
                             .replace(applicationProperties.getQuotationPlaceholder(), "\""));
-                    groupedChars[0] = "";
+                    csvItemBuilder[0] = "";
                 }
-            } else if (isOpeningQuote.get() && character.equals(',')){
-                groupedChars[0] += applicationProperties.getCommaPlaceholder();
+            } else if (isOpeningQuote.get() && character.equals(',')) {
+                csvItemBuilder[0] += applicationProperties.getCommaPlaceholder();
             } else {
-                groupedChars[0] += character;
+                csvItemBuilder[0] += character;
             }
         });
-        if(!StringUtils.isEmpty(groupedChars[0])) {
-            stringsWithoutQuotes.add(groupedChars[0]);
+        if (!StringUtils.isEmpty(csvItemBuilder[0])) {
+            stringsWithoutQuotes.add(csvItemBuilder[0]);
         }
+        log.info("Done adding quotation placeholders for for line " + line + " for transactionId: " + transactionId);
         return String.join("", stringsWithoutQuotes);
     }
 
-    private String breakOnCommas(String string) {
-        List<String> strings = new ArrayList<>();
-        Arrays.stream(string.split(",")).forEach(item -> strings.add("[" + item.replace("¡", ",") + "]"));
-        return String.join(" ", strings);
+    private String breakOnCommas(String line) {
+        List<String> finishedLineItems = new ArrayList<>();
+        Arrays.stream(line.split(","))
+                .forEach(item -> finishedLineItems.add("[" + item.replace(applicationProperties.getCommaPlaceholder(), ",") + "]"));
+        return String.join(" ", finishedLineItems);
     }
 
 }
