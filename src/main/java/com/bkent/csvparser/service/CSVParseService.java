@@ -1,16 +1,20 @@
 package com.bkent.csvparser.service;
 
+import com.bkent.csvparser.component.ApiErrorWarning;
+import com.bkent.csvparser.component.MetaData;
+import com.bkent.csvparser.component.ResponseWrapper;
 import com.bkent.csvparser.config.ApplicationProperties;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
+@Slf4j
 public class CSVParseService {
 
     private final ApplicationProperties applicationProperties;
@@ -19,18 +23,30 @@ public class CSVParseService {
         this.applicationProperties = applicationProperties;
     }
 
-    public String parseString(String csvData) {
-        csvData = handleEscapedQuotations(csvData);
+    public ResponseWrapper parseString(String csvData) {
+        String transactionId = UUID.randomUUID().toString();
+        csvData = handleEscapedQuotations(csvData, transactionId);
         StringBuilder finalString = new StringBuilder();
         try {
             csvData.lines().forEach(line -> finalString.append(handleIndividualLine(line)).append("\n"));
         } catch (IllegalStateException e) {
-            return e.getMessage();
+            return new ResponseWrapper(new MetaData(transactionId),
+                    null,
+                    HttpStatus.BAD_REQUEST.toString(),
+                    Collections.singletonList(new ApiErrorWarning(null, "Invalid quotations",
+                            "Quotation marks must appear in pairs. If you want to include a literal quote " +
+                                    "in your data, please escape it with an additional quote.", e.getMessage())),
+                    null);
         }
-        return finalString.toString().trim();
+        return new ResponseWrapper(new MetaData(transactionId),
+                finalString.toString().trim(),
+                HttpStatus.OK.toString(),
+                null,
+                null);
     }
 
-    private String handleEscapedQuotations(String originalString) {
+    private String handleEscapedQuotations(String originalString, String transactionId) {
+        log.info("Beginning handleEscapedQuotations for transactionId: " + transactionId);
         AtomicInteger counter = new AtomicInteger(0);
         String[] finalChars = {""};
         originalString.chars().mapToObj(character -> (char) character).forEach(character -> {
@@ -44,14 +60,14 @@ public class CSVParseService {
                 finalChars[0] += character;
             }
         });
+        log.info("Finished handleEscapedQuotations for transactionId: " + transactionId);
         return finalChars[0];
     }
 
     private String handleIndividualLine(String line) {
         long countQuotes = line.chars().filter(ch -> ch == '"').count();
         if (countQuotes % 2 != 0) {
-            throw new IllegalStateException("Quotation marks must appear in pairs. " +
-                    "If you want to include a literal quote in your data, please escape it with an additional quote.");
+            throw new IllegalStateException(line);
         }
         StringBuilder finishedLine = new StringBuilder();
         String quotesReplaced = removeQuotations(line);
