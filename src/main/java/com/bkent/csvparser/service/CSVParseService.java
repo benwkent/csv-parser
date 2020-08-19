@@ -32,7 +32,7 @@ public class CSVParseService {
         } catch (IllegalStateException e) {
             return new ResponseWrapper(new MetaData(transactionId),
                     null,
-                    HttpStatus.BAD_REQUEST.toString(),
+                    HttpStatus.BAD_REQUEST.value(),
                     Collections.singletonList(new ApiErrorWarning(null, "Invalid quotations",
                             "Quotation marks must appear in pairs. If you want to include a literal quote " +
                                     "in your data, please escape it with an additional quote.", e.getMessage())),
@@ -40,7 +40,7 @@ public class CSVParseService {
         }
         return new ResponseWrapper(new MetaData(transactionId),
                 finalString.toString().trim(),
-                HttpStatus.OK.toString(),
+                HttpStatus.OK.value(),
                 null,
                 null);
     }

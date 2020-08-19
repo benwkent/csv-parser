@@ -12,7 +12,7 @@ import java.util.List;
 public class ResponseWrapper {
     private MetaData meta;
     private String data;
-    private String statusCode;
+    private int statusCode;
     private List<ApiErrorWarning> errors;
     private List<ApiErrorWarning> warnings;
 }
