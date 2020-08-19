@@ -68,7 +68,7 @@ public class CSVParseService {
     }
 
     private boolean previousCharIsQuote(String originalString, int counter) {
-        return counter > 1 && originalString.substring(counter - 2, counter - 1).equals("\"");
+        return counter > 1 && originalString.charAt(counter - 2) == '"';
     }
 
     private String handleIndividualLine(String line, String transactionId) {
