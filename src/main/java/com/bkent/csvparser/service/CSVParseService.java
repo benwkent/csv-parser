@@ -1,5 +1,6 @@
 package com.bkent.csvparser.service;
 
+import com.bkent.csvparser.config.ApplicationProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -12,8 +13,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class CSVParseService {
 
-    private static final char INTERNAL_COMMA_PLACEHOLDER = '¡';
-    private static final char ESCAPED_QUOTATION = '™';
+    private final ApplicationProperties applicationProperties;
+
+    public CSVParseService(ApplicationProperties applicationProperties) {
+        this.applicationProperties = applicationProperties;
+    }
 
     public String parseString(String csvData) {
         csvData = handleEscapedQuotations(csvData);
@@ -32,7 +36,7 @@ public class CSVParseService {
         originalString.chars().mapToObj(character -> (char) character).forEach(character -> {
             counter.getAndIncrement();
             if (character.equals('"') && originalString.startsWith("\"", counter.get())) {
-                finalChars[0] += ESCAPED_QUOTATION;
+                finalChars[0] += applicationProperties.getQuotationPlaceholder();
             } else if (character.equals('"') && counter.get() > 1 && originalString.substring(counter.get() -2, counter.get() -1).equals("\"")) {
                 finalChars[0] += "";
             }
@@ -65,11 +69,12 @@ public class CSVParseService {
                 quoteCounter.getAndIncrement();
                 isOpeningQuote.set(quoteCounter.get() % 2 != 0);
                 if (!isOpeningQuote.get()) {
-                    stringsWithoutQuotes.add(groupedChars[0].replace(ESCAPED_QUOTATION, '"'));
+                    stringsWithoutQuotes.add(groupedChars[0]
+                            .replace(applicationProperties.getQuotationPlaceholder(), "\""));
                     groupedChars[0] = "";
                 }
             } else if (isOpeningQuote.get() && character.equals(',')){
-                groupedChars[0] += INTERNAL_COMMA_PLACEHOLDER;
+                groupedChars[0] += applicationProperties.getCommaPlaceholder();
             } else {
                 groupedChars[0] += character;
             }

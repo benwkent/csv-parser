@@ -1,0 +1,5 @@
+com:
+  bkent:
+    csvparser:
+      commaPlaceholder: ¡
+      quotationPlaceholder: ™
